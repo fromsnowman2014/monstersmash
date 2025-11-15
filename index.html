@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monster Smash - Defeat the Monsters!</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #000;
+        }
+
+        #startScreen, #gameOverScreen, #shopScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(26, 26, 46, 0.95);
+            color: #fff;
+            z-index: 10;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        h1 {
+            font-size: 48px;
+            color: #ff6b6b;
+            text-shadow: 0 0 20px #ff6b6b, 0 0 40px #ff6b6b;
+            margin-bottom: 20px;
+            animation: glow 2s ease-in-out infinite;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 4px;
+        }
+
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 20px #ff6b6b, 0 0 40px #ff6b6b; }
+            50% { text-shadow: 0 0 30px #ff6b6b, 0 0 60px #ff6b6b, 0 0 80px #ff6b6b; }
+        }
+
+        .subtitle {
+            font-size: 20px;
+            color: #ccc;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            background: linear-gradient(45deg, #ff6b6b, #ff4757);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4);
+            margin: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 71, 87, 0.6);
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
+        }
+
+        .btn-shop {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            box-shadow: 0 5px 15px rgba(78, 205, 196, 0.4);
+        }
+
+        .btn-shop:hover {
+            box-shadow: 0 8px 25px rgba(78, 205, 196, 0.6);
+        }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            color: #fff;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .hud-item {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 2px solid #ff6b6b;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .hud-label {
+            color: #ff6b6b;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 1px;
+        }
+
+        #shopButton {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 6;
+            pointer-events: auto;
+            padding: 10px 20px;
+            font-size: 18px;
+        }
+
+        /* Shop Styles */
+        .shop-container {
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .shop-section {
+            margin-bottom: 30px;
+        }
+
+        .shop-section h2 {
+            color: #4ecdc4;
+            margin-bottom: 15px;
+            font-size: 28px;
+            text-shadow: 0 0 10px #4ecdc4;
+        }
+
+        .shop-item {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid #4ecdc4;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+        }
+
+        .shop-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(5px);
+        }
+
+        .shop-item.owned {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.2);
+        }
+
+        .shop-item.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .item-info {
+            flex: 1;
+        }
+
+        .item-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .item-desc {
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .item-price {
+            font-size: 24px;
+            color: #ffd700;
+            margin-right: 15px;
+        }
+
+        .btn-buy {
+            padding: 10px 20px;
+            font-size: 16px;
+            background: linear-gradient(45deg, #10b981, #059669);
+        }
+
+        .btn-buy:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .stats {
+            margin: 20px 0;
+            font-size: 28px;
+            color: #ff6b6b;
+        }
+
+        .controls {
+            margin-top: 20px;
+            font-size: 16px;
+            color: #999;
+            text-align: center;
+        }
+
+        .controls p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="1000" height="700"></canvas>
+        
+        <!-- HUD -->
+        <div id="hud" class="hidden">
+            <div class="hud-item">
+                <div class="hud-label">SCORE</div>
+                <div id="scoreDisplay">0</div>
+            </div>
+            <div class="hud-item">
+                <div class="hud-label">COINS</div>
+                <div id="coinsDisplay">0</div>
+            </div>
+            <div class="hud-item">
+                <div class="hud-label">MAP</div>
+                <div id="mapDisplay">1</div>
+            </div>
+        </div>
+
+        <!-- Shop Button -->
+        <button id="shopButton" class="btn btn-shop hidden" onclick="openShop()">🛒 SHOP</button>
+
+        <!-- Start Screen -->
+        <div id="startScreen">
+            <h1>⚔️ MONSTER SMASH ⚔️</h1>
+            <p class="subtitle">Defeat the monsters and unlock new maps!</p>
+            <button class="btn" onclick="startGame()">START GAME</button>
+            <button class="btn btn-shop" onclick="openShop()">🛒 SHOP</button>
+            <div class="controls">
+                <p>⚔️ SPACEBAR to attack monsters</p>
+                <p>⬅️ ➡️ Arrow Keys / WASD to move</p>
+                <p>💰 Earn coins by defeating monsters</p>
+            </div>
+        </div>
+
+        <!-- Shop Screen -->
+        <div id="shopScreen" class="hidden">
+            <h1>🛒 SHOP</h1>
+            <div class="shop-container">
+                <div class="shop-section">
+                    <h2>⚔️ SWORDS</h2>
+                    <div id="swordsList"></div>
+                </div>
+                <div class="shop-section">
+                    <h2>🗺️ MAPS</h2>
+                    <div id="mapsList"></div>
+                </div>
+            </div>
+            <button class="btn" onclick="closeShop()">BACK TO GAME</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="hidden">
+            <h1>💀 GAME OVER</h1>
+            <div class="stats">
+                <p>Final Score: <span id="finalScore">0</span></p>
+                <p>Coins Earned: <span id="finalCoins">0</span></p>
+            </div>
+            <button class="btn" onclick="startGame()">PLAY AGAIN</button>
+            <button class="btn btn-shop" onclick="openShop()">🛒 SHOP</button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
+
