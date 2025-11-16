@@ -329,6 +329,7 @@ class Monster {
         this.targetY = this.y;
         this.angle = Math.random() * Math.PI * 2;
         this.animationFrame = 0;
+        this.facingRight = true;
     }
 
     getMaxHealth() {
@@ -368,7 +369,11 @@ class Monster {
             if (dist > 0) {
                 this.x += (dx / dist) * this.speed;
                 this.y += (dy / dist) * this.speed;
-                this.angle = Math.atan2(dy, dx);
+                // Flying/sliming enemies rotate toward player
+                if (this.type !== 'skeleton') {
+                    this.angle = Math.atan2(dy, dx);
+                }
+                // Skeletons keep their facing direction (no turning)
             }
 
             // Attack player if close enough
@@ -387,7 +392,17 @@ class Monster {
         const imageKey = this.type;
         if (images[imageKey] && images[imageKey].complete) {
             ctx.translate(this.x, this.y);
-            ctx.rotate(this.angle + Math.PI / 2);
+
+            if (this.type === 'skeleton') {
+                // Skeletons walk: no spinning, just flip left/right
+                if (!this.facingRight) {
+                    ctx.scale(-1, 1);
+                }
+            } else {
+                // Other monsters can rotate toward their movement
+                ctx.rotate(this.angle + Math.PI / 2);
+            }
+
             ctx.drawImage(images[imageKey], -this.width / 2, -this.height / 2, this.width, this.height);
             ctx.restore();
         } else {
