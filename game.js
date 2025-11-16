@@ -546,6 +546,13 @@ function updateShopDisplay() {
         
         const isCurrent = map.id === gameState.currentMap;
         const canBuy = !map.owned && gameState.coins >= map.price;
+
+        // Button state:
+        // - Locked & not enough coins  -> disabled BUY
+        // - Locked & enough coins      -> enabled BUY
+        // - Owned                      -> enabled (SELECT / ACTIVE)
+        const disabledAttr = !map.owned && !canBuy ? 'disabled' : '';
+        const label = !map.owned ? 'BUY' : (isCurrent ? 'ACTIVE' : 'SELECT');
         
         item.innerHTML = `
             <div class="item-info">
@@ -553,9 +560,8 @@ function updateShopDisplay() {
                 <div class="item-desc">Enemies: ${map.enemies.join(', ')}</div>
             </div>
             <div class="item-price">${map.price}💰</div>
-            <button class="btn btn-buy" ${map.owned ? '' : 'disabled'} ${!canBuy ? 'disabled' : ''} 
-                    onclick="buyMap(${map.id})">
-                ${map.owned ? (isCurrent ? 'ACTIVE' : 'SELECT') : 'BUY'}
+            <button class="btn btn-buy" ${disabledAttr} onclick="buyMap(${map.id})">
+                ${label}
             </button>
         `;
         
