@@ -269,7 +269,7 @@ class Player {
 
     draw() {
         ctx.save();
-        
+
         // Draw player
         if (images.player.complete) {
             ctx.translate(this.x, this.y);
@@ -277,12 +277,14 @@ class Player {
                 ctx.scale(-1, 1);
             }
             ctx.drawImage(images.player, -this.width / 2, -this.height / 2, this.width, this.height);
-            ctx.restore();
         } else {
             // Fallback
             ctx.fillStyle = '#4ecdc4';
             ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
         }
+        ctx.restore();
+
+        this.drawSword();
 
         // Draw attack arc
         if (this.attacking) {
@@ -304,6 +306,45 @@ class Player {
         ctx.fillRect(this.x - barWidth / 2, this.y - this.height / 2 - 15, barWidth, barHeight);
         ctx.fillStyle = '#10b981';
         ctx.fillRect(this.x - barWidth / 2, this.y - this.height / 2 - 15, barWidth * (this.health / this.maxHealth), barHeight);
+    }
+
+    drawSword() {
+        const currentSword = gameState.shop.swords.find(s => s.id === gameState.shop.currentSword);
+        if (!currentSword) {
+            return;
+        }
+
+        const swordKey = currentSword.image.replace('.png', '');
+        const swordImage = images[swordKey];
+        if (!swordImage || !swordImage.complete) {
+            return;
+        }
+
+        let swordAngle;
+        if (this.attacking) {
+            const swingArc = Math.PI * 0.8;
+            const swingProgress = Math.min(this.attackAnimationProgress / Math.PI, 1);
+            const easedProgress = 1 - Math.pow(1 - swingProgress, 2);
+            swordAngle = this.attackAngle - swingArc / 2 + swingArc * easedProgress;
+        } else {
+            const facingAngle = this.facingRight ? 0 : Math.PI;
+            const tilt = this.facingRight ? Math.PI / 6 : -Math.PI / 6;
+            const idleSway = Math.sin(Date.now() / 200) * 0.05;
+            swordAngle = facingAngle + tilt + idleSway;
+        }
+
+        const swordDistance = this.width * 0.7;
+        const swordX = this.x + Math.cos(swordAngle) * swordDistance;
+        const swordY = this.y + Math.sin(swordAngle) * swordDistance;
+
+        const swordWidth = this.width * 0.6;
+        const swordHeight = this.height * 1.4;
+
+        ctx.save();
+        ctx.translate(swordX, swordY);
+        ctx.rotate(swordAngle + Math.PI / 2);
+        ctx.drawImage(swordImage, -swordWidth / 2, -swordHeight / 2, swordWidth, swordHeight);
+        ctx.restore();
     }
 
     takeDamage(amount) {
