@@ -21,6 +21,22 @@ const CONFIG = {
     }
 };
 
+const DEFAULT_SWORDS = [
+    { id: 1, name: 'Basic Sword', damage: 10, price: 0, owned: true, image: 'sword1.png' },
+    { id: 2, name: 'Iron Sword', damage: 20, price: 50, owned: false, image: 'sword2.png' },
+    { id: 3, name: 'Steel Sword', damage: 35, price: 150, owned: false, image: 'sword3.png' },
+    { id: 4, name: 'Dragon Sword', damage: 55, price: 400, owned: false, image: 'sword4.png' },
+    { id: 5, name: 'Legendary Sword', damage: 100, price: 1000, owned: false, image: 'sword5.png' }
+];
+
+const DEFAULT_MAPS = [
+    { id: 1, name: 'Map 1: Slimers', enemies: ['slimer'], price: 0, owned: true, background: 'bg1.png' },
+    { id: 2, name: 'Map 2: Slimers + Bats', enemies: ['slimer', 'bat'], price: 200, owned: false, background: 'bg2.png' },
+    { id: 3, name: 'Map 3: Skeletons + Bats', enemies: ['skeleton', 'bat'], price: 500, owned: false, background: 'bg3.png' }
+];
+
+const cloneDefaults = (items) => items.map(item => ({ ...item }));
+
 // Game State
 let gameState = {
     isPlaying: false,
@@ -35,18 +51,8 @@ let gameState = {
     lastAttack: 0,
     keys: {},
     shop: {
-        swords: [
-            { id: 1, name: 'Basic Sword', damage: 10, price: 0, owned: true, image: 'sword1.png' },
-            { id: 2, name: 'Iron Sword', damage: 20, price: 50, owned: false, image: 'sword2.png' },
-            { id: 3, name: 'Steel Sword', damage: 35, price: 150, owned: false, image: 'sword3.png' },
-            { id: 4, name: 'Dragon Sword', damage: 55, price: 400, owned: false, image: 'sword4.png' },
-            { id: 5, name: 'Legendary Sword', damage: 100, price: 1000, owned: false, image: 'sword5.png' }
-        ],
-        maps: [
-            { id: 1, name: 'Map 1: Slimers', enemies: ['slimer'], price: 0, owned: true, background: 'bg1.png' },
-            { id: 2, name: 'Map 2: Slimers + Bats', enemies: ['slimer', 'bat'], price: 200, owned: false, background: 'bg2.png' },
-            { id: 3, name: 'Map 3: Skeletons + Bats', enemies: ['skeleton', 'bat'], price: 500, owned: false, background: 'bg3.png' }
-        ],
+        swords: cloneDefaults(DEFAULT_SWORDS),
+        maps: cloneDefaults(DEFAULT_MAPS),
         currentSword: 1
     }
 };
@@ -805,22 +811,72 @@ function loadGameData() {
     
     const savedSwords = localStorage.getItem('monsterSmash_swords');
     if (savedSwords) {
-        gameState.shop.swords = JSON.parse(savedSwords);
+        try {
+            const parsedSwords = JSON.parse(savedSwords);
+            if (Array.isArray(parsedSwords)) {
+                const defaultSwords = cloneDefaults(DEFAULT_SWORDS);
+                gameState.shop.swords = defaultSwords.map(defaultSword => {
+                    const savedSword = parsedSwords.find(sword => sword.id === defaultSword.id) || {};
+                    return {
+                        ...defaultSword,
+                        owned: savedSword.owned ?? defaultSword.owned,
+                        damage: savedSword.damage ?? defaultSword.damage,
+                        price: savedSword.price ?? defaultSword.price,
+                        image: savedSword.image || defaultSword.image
+                    };
+                });
+            }
+        } catch (error) {
+            console.warn('Failed to parse saved swords data', error);
+        }
+    } else {
+        gameState.shop.swords = cloneDefaults(DEFAULT_SWORDS);
     }
     
     const savedMaps = localStorage.getItem('monsterSmash_maps');
     if (savedMaps) {
-        gameState.shop.maps = JSON.parse(savedMaps);
+        try {
+            const parsedMaps = JSON.parse(savedMaps);
+            if (Array.isArray(parsedMaps)) {
+                const defaultMaps = cloneDefaults(DEFAULT_MAPS);
+                gameState.shop.maps = defaultMaps.map(defaultMap => {
+                    const savedMap = parsedMaps.find(map => map.id === defaultMap.id) || {};
+                    return {
+                        ...defaultMap,
+                        owned: savedMap.owned ?? defaultMap.owned,
+                        price: savedMap.price ?? defaultMap.price,
+                        enemies: savedMap.enemies || defaultMap.enemies,
+                        background: savedMap.background || defaultMap.background
+                    };
+                });
+            }
+        } catch (error) {
+            console.warn('Failed to parse saved maps data', error);
+        }
+    } else {
+        gameState.shop.maps = cloneDefaults(DEFAULT_MAPS);
     }
     
     const savedSword = localStorage.getItem('monsterSmash_currentSword');
     if (savedSword) {
         gameState.shop.currentSword = parseInt(savedSword);
     }
+    if (!gameState.shop.swords.some(sword => sword.id === gameState.shop.currentSword && sword.owned)) {
+        const fallbackSword = gameState.shop.swords.find(sword => sword.owned) || gameState.shop.swords[0];
+        if (fallbackSword) {
+            gameState.shop.currentSword = fallbackSword.id;
+        }
+    }
     
     const savedMap = localStorage.getItem('monsterSmash_currentMap');
     if (savedMap) {
         gameState.currentMap = parseInt(savedMap);
+    }
+    if (!gameState.shop.maps.some(map => map.id === gameState.currentMap && map.owned)) {
+        const fallbackMap = gameState.shop.maps.find(map => map.owned) || gameState.shop.maps[0];
+        if (fallbackMap) {
+            gameState.currentMap = fallbackMap.id;
+        }
     }
 }
 
