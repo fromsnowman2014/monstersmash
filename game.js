@@ -36,7 +36,7 @@ const DEFAULT_MAPS = [
 ];
 
 const DEFAULT_PETS = [
-    { id: 1, name: 'Archer', description: 'A loyal archer companion', price: 0, owned: true, image: 'archer.png', damage: 8, attackRange: 300, attackCooldown: 1500, attackType: 'arrow' },
+    { id: 1, name: 'Archer', description: 'A loyal archer companion', price: 100, owned: false, image: 'archer.png', damage: 8, attackRange: 300, attackCooldown: 1500, attackType: 'arrow' },
     { id: 2, name: 'Eye Golem', description: 'A mystical eye golem', price: 300, owned: false, image: 'eyeballgolem.png', damage: 12, attackRange: 250, attackCooldown: 2000, attackType: 'laser' },
     { id: 3, name: 'Stone Golem', description: 'A sturdy stone guardian', price: 600, owned: false, image: 'stonegolem.png', damage: 15, attackRange: 100, attackCooldown: 1800, attackType: 'punch' },
     { id: 4, name: 'Witch', description: 'A magical witch ally', price: 800, owned: false, image: 'witch.png', damage: 20, attackRange: 350, attackCooldown: 2500, attackType: 'spell' }
