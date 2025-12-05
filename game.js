@@ -35,11 +35,12 @@ const DEFAULT_MAPS = [
     { id: 3, name: 'Map 3: Skeletons + Bats', enemies: ['skeleton', 'bat'], price: 500, owned: false, background: 'bg3.png' }
 ];
 
+
 const DEFAULT_PETS = [
-    { id: 1, name: 'Archer', description: 'A loyal archer companion', price: 100, owned: false, image: 'archer.png', damage: 8, attackRange: 300, attackCooldown: 1500, attackType: 'arrow' },
-    { id: 2, name: 'Eye Golem', description: 'A mystical eye golem', price: 300, owned: false, image: 'eyeballgolem.png', damage: 12, attackRange: 250, attackCooldown: 2000, attackType: 'laser' },
-    { id: 3, name: 'Stone Golem', description: 'A sturdy stone guardian', price: 600, owned: false, image: 'stonegolem.png', damage: 15, attackRange: 100, attackCooldown: 1800, attackType: 'punch' },
-    { id: 4, name: 'Witch', description: 'A magical witch ally', price: 800, owned: false, image: 'witch.png', damage: 20, attackRange: 350, attackCooldown: 2500, attackType: 'spell' }
+    { id: 1, name: 'Archer', description: 'A loyal archer companion', price: 0, quantity: 1, image: 'archer.png', damage: 8, attackRange: 300, attackCooldown: 1500, attackType: 'arrow' },
+    { id: 2, name: 'Eye Golem', description: 'A mystical eye golem', price: 300, quantity: 0, image: 'eyeballgolem.png', damage: 12, attackRange: 250, attackCooldown: 2000, attackType: 'laser' },
+    { id: 3, name: 'Stone Golem', description: 'A sturdy stone guardian', price: 600, quantity: 0, image: 'stonegolem.png', damage: 15, attackRange: 100, attackCooldown: 1800, attackType: 'punch' },
+    { id: 4, name: 'Witch', description: 'A magical witch ally', price: 800, quantity: 0, image: 'witch.png', damage: 20, attackRange: 350, attackCooldown: 2500, attackType: 'spell' }
 ];
 
 const cloneDefaults = (items) => items.map(item => ({ ...item }));
@@ -61,10 +62,9 @@ let gameState = {
         swords: cloneDefaults(DEFAULT_SWORDS),
         maps: cloneDefaults(DEFAULT_MAPS),
         pets: cloneDefaults(DEFAULT_PETS),
-        currentSword: 1,
-        currentPet: 1
+        currentSword: 1
     },
-    pet: null,
+    pets: [],
     petProjectiles: []
 };
 
@@ -716,14 +716,19 @@ class PetProjectile {
 
 // Pet Class
 class Pet {
-    constructor(petData) {
+    constructor(petData, index = 0, totalOfType = 1) {
         this.petData = petData;
+        this.index = index; // Index among pets of the same type
+        this.totalOfType = totalOfType; // Total number of pets of this type
         this.x = 0;
         this.y = 0;
         this.width = 200;
         this.height = 100;
-        this.offsetX = 0;
-        this.offsetY = -60; // Position behind player
+        // Position pets in a formation around the player
+        const angle = (index / totalOfType) * Math.PI * 2;
+        const radius = 80;
+        this.offsetX = Math.cos(angle) * radius;
+        this.offsetY = Math.sin(angle) * radius - 40; // Slightly behind player
         this.followSpeed = 3;
         this.animationFrame = 0;
         this.bobOffset = 0;
@@ -889,15 +894,23 @@ function startGame() {
     gameState.player = new Player();
     gameState.player.health = CONFIG.player.health;
 
-    // Create pet
-    const currentPet = gameState.shop.pets.find(p => p.id === gameState.shop.currentPet);
-    if (currentPet && currentPet.owned) {
-        gameState.pet = new Pet(currentPet);
-        gameState.pet.x = gameState.player.x;
-        gameState.pet.y = gameState.player.y;
-    } else {
-        gameState.pet = null;
-    }
+    // Create pets based on quantity
+    gameState.pets = [];
+    let totalPets = 0;
+    gameState.shop.pets.forEach(pet => {
+        totalPets += pet.quantity || 0;
+    });
+    
+    let petIndex = 0;
+    gameState.shop.pets.forEach(pet => {
+        for (let i = 0; i < pet.quantity; i++) {
+            const petInstance = new Pet(pet, petIndex, totalPets);
+            petInstance.x = gameState.player.x;
+            petInstance.y = gameState.player.y;
+            gameState.pets.push(petInstance);
+            petIndex++;
+        }
+    });
 
     // Hide menus, show HUD
     document.getElementById('startScreen').classList.add('hidden');
@@ -1005,20 +1018,20 @@ function updateShopDisplay() {
         
         gameState.shop.pets.forEach(pet => {
             const item = document.createElement('div');
-            item.className = `shop-item ${pet.owned ? 'owned' : ''}`;
+            item.className = `shop-item ${pet.quantity > 0 ? 'owned' : ''}`;
             
-            const isCurrent = pet.id === gameState.shop.currentPet;
-            const canBuy = !pet.owned && gameState.coins >= pet.price;
+            const canBuy = gameState.coins >= pet.price;
+            const quantityText = pet.quantity > 0 ? `${pet.quantity}x` : '';
             
             item.innerHTML = `
                 <div class="item-info">
-                    <div class="item-name">${pet.name} ${isCurrent ? '(EQUIPPED)' : ''}</div>
+                    <div class="item-name">${pet.name} ${quantityText}</div>
                     <div class="item-desc">${pet.description} | Damage: ${pet.damage || 10} | Range: ${pet.attackRange || 250}px</div>
                 </div>
                 <div class="item-price">${pet.price}💰</div>
-                <button class="btn btn-buy" ${pet.owned ? '' : (canBuy ? '' : 'disabled')} 
+                <button class="btn btn-buy" ${canBuy ? '' : 'disabled'} 
                         onclick="buyPet(${pet.id})">
-                    ${pet.owned ? (isCurrent ? 'EQUIPPED' : 'EQUIP') : 'BUY'}
+                    BUY
                 </button>
             `;
             
@@ -1071,31 +1084,34 @@ function buyPet(petId) {
     const pet = gameState.shop.pets.find(p => p.id === petId);
     if (!pet) return;
     
-    if (!pet.owned) {
-        if (gameState.coins >= pet.price) {
-            gameState.coins -= pet.price;
-            pet.owned = true;
-            gameState.shop.currentPet = petId;
-            // Update pet in game if playing
-            if (gameState.isPlaying && gameState.player) {
-                gameState.pet = new Pet(pet);
-                gameState.pet.x = gameState.player.x;
-                gameState.pet.y = gameState.player.y;
-            }
-            updateShopDisplay();
-            updateHUD();
-            saveGameData();
-        }
-    } else {
-        // Equip pet
-        gameState.shop.currentPet = petId;
-        // Update pet in game if playing
+    if (gameState.coins >= pet.price) {
+        gameState.coins -= pet.price;
+        pet.quantity = (pet.quantity || 0) + 1;
+        
+        // Update pets in game if playing
         if (gameState.isPlaying && gameState.player) {
-            gameState.pet = new Pet(pet);
-            gameState.pet.x = gameState.player.x;
-            gameState.pet.y = gameState.player.y;
+            // Recalculate total pets
+            let totalPets = 0;
+            gameState.shop.pets.forEach(p => {
+                totalPets += p.quantity || 0;
+            });
+            
+            // Recreate all pets with updated quantities and positions
+            gameState.pets = [];
+            let petIndex = 0;
+            gameState.shop.pets.forEach(p => {
+                for (let i = 0; i < p.quantity; i++) {
+                    const petInstance = new Pet(p, petIndex, totalPets);
+                    petInstance.x = gameState.player.x;
+                    petInstance.y = gameState.player.y;
+                    gameState.pets.push(petInstance);
+                    petIndex++;
+                }
+            });
         }
+        
         updateShopDisplay();
+        updateHUD();
         saveGameData();
     }
 }
@@ -1155,10 +1171,8 @@ function updateGame() {
         }
     }
     
-    // Update pet
-    if (gameState.pet) {
-        gameState.pet.update();
-    }
+    // Update pets
+    gameState.pets.forEach(pet => pet.update());
     
     // Update pet projectiles
     gameState.petProjectiles = gameState.petProjectiles.filter(proj => {
@@ -1212,10 +1226,8 @@ function drawGame() {
     // Draw pet projectiles
     gameState.petProjectiles.forEach(proj => proj.draw());
     
-    // Draw pet (behind player but above monsters)
-    if (gameState.pet) {
-        gameState.pet.draw();
-    }
+    // Draw pets (behind player but above monsters)
+    gameState.pets.forEach(pet => pet.draw());
 }
 
 function gameLoop() {
@@ -1250,7 +1262,6 @@ function saveGameData() {
     localStorage.setItem('monsterSmash_pets', JSON.stringify(gameState.shop.pets));
     localStorage.setItem('monsterSmash_currentSword', gameState.shop.currentSword.toString());
     localStorage.setItem('monsterSmash_currentMap', gameState.currentMap.toString());
-    localStorage.setItem('monsterSmash_currentPet', gameState.shop.currentPet.toString());
 }
 
 function loadGameData() {
@@ -1315,9 +1326,14 @@ function loadGameData() {
                 const defaultPets = cloneDefaults(DEFAULT_PETS);
                 gameState.shop.pets = defaultPets.map(defaultPet => {
                     const savedPet = parsedPets.find(pet => pet.id === defaultPet.id) || {};
+                    // Handle migration from owned to quantity
+                    let quantity = savedPet.quantity;
+                    if (quantity === undefined) {
+                        quantity = savedPet.owned ? 1 : 0;
+                    }
                     return {
                         ...defaultPet,
-                        owned: savedPet.owned ?? defaultPet.owned,
+                        quantity: quantity,
                         price: savedPet.price ?? defaultPet.price,
                         description: savedPet.description || defaultPet.description,
                         image: savedPet.image || defaultPet.image,
@@ -1357,16 +1373,6 @@ function loadGameData() {
         }
     }
     
-    const savedPet = localStorage.getItem('monsterSmash_currentPet');
-    if (savedPet) {
-        gameState.shop.currentPet = parseInt(savedPet);
-    }
-    if (!gameState.shop.pets.some(pet => pet.id === gameState.shop.currentPet && pet.owned)) {
-        const fallbackPet = gameState.shop.pets.find(pet => pet.owned) || gameState.shop.pets[0];
-        if (fallbackPet) {
-            gameState.shop.currentPet = fallbackPet.id;
-        }
-    }
 }
 
 // Load game data on page load
