@@ -22,7 +22,7 @@ const CONFIG = {
 };
 
 const DEFAULT_SWORDS = [
-    { id: 1, name: 'Wooden Sword', damage: 10, price: 0, owned: true, image: 'sword1.png' },
+    { id: 1, name: 'Basic Sword', damage: 10, price: 0, owned: true, image: 'sword1.png' },
     { id: 2, name: 'Iron Sword', damage: 20, price: 50, owned: false, image: 'sword2.png' },
     { id: 3, name: 'Steel Sword', damage: 35, price: 150, owned: false, image: 'sword3.png' },
     { id: 4, name: 'Dragon Sword', damage: 55, price: 400, owned: false, image: 'sword4.png' },
@@ -36,10 +36,10 @@ const DEFAULT_MAPS = [
 ];
 
 const DEFAULT_PETS = [
-    { id: 1, name: 'Archer', description: 'A loyal archer companion', price: 100, owned: false, image: 'archer.png' },
-    { id: 2, name: 'Eye Golem', description: 'A mystical eye golem', price: 300, owned: false, image: 'eyeballgolem.png' },
-    { id: 3, name: 'Stone Golem', description: 'A sturdy stone guardian', price: 600, owned: false, image: 'stonegolem.png' },
-    { id: 4, name: 'Witch', description: 'A magical witch ally', price: 800, owned: false, image: 'witch.png' }
+    { id: 1, name: 'Archer', description: 'A loyal archer companion', price: 0, owned: true, image: 'archer.png', damage: 8, attackRange: 300, attackCooldown: 1500, attackType: 'arrow' },
+    { id: 2, name: 'Eye Golem', description: 'A mystical eye golem', price: 300, owned: false, image: 'eyeballgolem.png', damage: 12, attackRange: 250, attackCooldown: 2000, attackType: 'laser' },
+    { id: 3, name: 'Stone Golem', description: 'A sturdy stone guardian', price: 600, owned: false, image: 'stonegolem.png', damage: 15, attackRange: 100, attackCooldown: 1800, attackType: 'punch' },
+    { id: 4, name: 'Witch', description: 'A magical witch ally', price: 800, owned: false, image: 'witch.png', damage: 20, attackRange: 350, attackCooldown: 2500, attackType: 'spell' }
 ];
 
 const cloneDefaults = (items) => items.map(item => ({ ...item }));
@@ -64,7 +64,8 @@ let gameState = {
         currentSword: 1,
         currentPet: 1
     },
-    pet: null
+    pet: null,
+    petProjectiles: []
 };
 
 // Canvas Setup
@@ -530,6 +531,189 @@ class Monster {
     }
 }
 
+// Pet Projectile Class
+class PetProjectile {
+    constructor(x, y, targetX, targetY, damage, type, petId) {
+        this.x = x;
+        this.y = y;
+        this.startX = x;
+        this.startY = y;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.damage = damage;
+        this.type = type; // 'arrow', 'laser', 'spell', 'punch'
+        this.petId = petId;
+        this.speed = this.getSpeed();
+        this.life = 60;
+        this.maxLife = 60;
+        
+        const dx = targetX - x;
+        const dy = targetY - y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        this.vx = (dx / dist) * this.speed;
+        this.vy = (dy / dist) * this.speed;
+        this.angle = Math.atan2(dy, dx);
+        
+        this.size = this.getSize();
+        this.color = this.getColor();
+    }
+
+    getSpeed() {
+        switch (this.type) {
+            case 'arrow': return 8;
+            case 'laser': return 10;
+            case 'spell': return 6;
+            case 'punch': return 12;
+            default: return 8;
+        }
+    }
+
+    getSize() {
+        switch (this.type) {
+            case 'arrow': return 8;
+            case 'laser': return 6;
+            case 'spell': return 12;
+            case 'punch': return 15;
+            default: return 8;
+        }
+    }
+
+    getColor() {
+        switch (this.type) {
+            case 'arrow': return '#8B4513';
+            case 'laser': return '#FF1493';
+            case 'spell': return '#9370DB';
+            case 'punch': return '#696969';
+            default: return '#fff';
+        }
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life--;
+
+        // Check collision with monsters
+        gameState.monsters.forEach(monster => {
+            const dx = monster.x - this.x;
+            const dy = monster.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < monster.width / 2 + this.size) {
+                monster.takeDamage(this.damage);
+                
+                // Create hit effect
+                this.createHitEffect(monster.x, monster.y);
+                
+                // Remove projectile
+                this.life = 0;
+            }
+        });
+
+        // Remove if out of bounds or expired
+        if (this.life <= 0 || 
+            this.x < -50 || this.x > CONFIG.canvas.width + 50 ||
+            this.y < -50 || this.y > CONFIG.canvas.height + 50) {
+            return true;
+        }
+        return false;
+    }
+
+    createHitEffect(x, y) {
+        const colors = {
+            'arrow': ['#8B4513', '#FFD700'],
+            'laser': ['#FF1493', '#FF69B4'],
+            'spell': ['#9370DB', '#BA55D3'],
+            'punch': ['#696969', '#A9A9A9']
+        };
+        
+        const effectColors = colors[this.type] || ['#fff', '#ccc'];
+        
+        for (let i = 0; i < 15; i++) {
+            gameState.particles.push(new Particle(
+                x,
+                y,
+                effectColors[Math.floor(Math.random() * effectColors.length)],
+                {
+                    x: (Math.random() - 0.5) * 10,
+                    y: (Math.random() - 0.5) * 10
+                },
+                20
+            ));
+        }
+    }
+
+    draw() {
+        ctx.save();
+        
+        switch (this.type) {
+            case 'arrow':
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(-this.size * 2, -this.size / 2);
+                ctx.lineTo(-this.size * 2, this.size / 2);
+                ctx.closePath();
+                ctx.fill();
+                // Arrow shaft
+                ctx.fillStyle = '#654321';
+                ctx.fillRect(-this.size * 2, -this.size / 4, this.size * 2, this.size / 2);
+                break;
+                
+            case 'laser':
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 3;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.startX, this.startY);
+                ctx.lineTo(this.x, this.y);
+                ctx.stroke();
+                // Laser core
+                ctx.fillStyle = '#FF69B4';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+                
+            case 'spell':
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                // Spell glow
+                ctx.fillStyle = '#BA55D3';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+                
+            case 'punch':
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                // Impact effect
+                ctx.strokeStyle = '#A9A9A9';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 1.2, 0, Math.PI * 2);
+                ctx.stroke();
+                break;
+        }
+        
+        ctx.restore();
+    }
+
+    isDead() {
+        return this.life <= 0;
+    }
+}
+
 // Pet Class
 class Pet {
     constructor(petData) {
@@ -543,6 +727,13 @@ class Pet {
         this.followSpeed = 3;
         this.animationFrame = 0;
         this.bobOffset = 0;
+        this.lastAttack = 0;
+        this.attackRange = petData.attackRange || 250;
+        this.attackCooldown = petData.attackCooldown || 2000;
+        this.damage = petData.damage || 10;
+        this.attackType = petData.attackType || 'arrow';
+        this.attacking = false;
+        this.attackTarget = null;
     }
 
     update() {
@@ -565,6 +756,78 @@ class Pet {
         // Bobbing animation
         this.animationFrame += 0.1;
         this.bobOffset = Math.sin(this.animationFrame) * 3;
+
+        // Attack logic
+        this.attack();
+    }
+
+    attack() {
+        const currentTime = Date.now();
+        if (currentTime - this.lastAttack < this.attackCooldown) {
+            return;
+        }
+
+        // Find nearest monster in range
+        let nearestMonster = null;
+        let nearestDist = Infinity;
+
+        gameState.monsters.forEach(monster => {
+            const dx = monster.x - this.x;
+            const dy = monster.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < this.attackRange && dist < nearestDist) {
+                nearestDist = dist;
+                nearestMonster = monster;
+            }
+        });
+
+        if (nearestMonster) {
+            this.lastAttack = currentTime;
+            this.attacking = true;
+            this.attackTarget = nearestMonster;
+
+            // Create projectile
+            gameState.petProjectiles.push(new PetProjectile(
+                this.x,
+                this.y + this.bobOffset,
+                nearestMonster.x,
+                nearestMonster.y,
+                this.damage,
+                this.attackType,
+                this.petData.id
+            ));
+
+            // Create attack effect at pet position
+            this.createAttackEffect();
+        } else {
+            this.attacking = false;
+            this.attackTarget = null;
+        }
+    }
+
+    createAttackEffect() {
+        const colors = {
+            'arrow': '#8B4513',
+            'laser': '#FF1493',
+            'spell': '#9370DB',
+            'punch': '#696969'
+        };
+
+        const effectColor = colors[this.attackType] || '#fff';
+
+        for (let i = 0; i < 8; i++) {
+            gameState.particles.push(new Particle(
+                this.x,
+                this.y + this.bobOffset,
+                effectColor,
+                {
+                    x: (Math.random() - 0.5) * 6,
+                    y: (Math.random() - 0.5) * 6
+                },
+                15
+            ));
+        }
     }
 
     draw() {
@@ -580,8 +843,33 @@ class Pet {
 
         ctx.save();
         ctx.translate(this.x, this.y + this.bobOffset);
+        
+        // Draw attack indicator when attacking
+        if (this.attacking && this.attackTarget) {
+            ctx.strokeStyle = this.getAttackColor();
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = this.getAttackColor();
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            const dx = this.attackTarget.x - this.x;
+            const dy = this.attackTarget.y - (this.y + this.bobOffset);
+            ctx.lineTo(dx, dy);
+            ctx.stroke();
+        }
+        
         ctx.drawImage(petImage, -this.width / 2, -this.height / 2, this.width, this.height);
         ctx.restore();
+    }
+
+    getAttackColor() {
+        switch (this.attackType) {
+            case 'arrow': return '#8B4513';
+            case 'laser': return '#FF1493';
+            case 'spell': return '#9370DB';
+            case 'punch': return '#696969';
+            default: return '#fff';
+        }
     }
 }
 
@@ -593,6 +881,7 @@ function startGame() {
     gameState.score = 0;
     gameState.monsters = [];
     gameState.particles = [];
+    gameState.petProjectiles = [];
     gameState.lastMonsterSpawn = Date.now();
     gameState.lastAttack = 0;
     
@@ -724,7 +1013,7 @@ function updateShopDisplay() {
             item.innerHTML = `
                 <div class="item-info">
                     <div class="item-name">${pet.name} ${isCurrent ? '(EQUIPPED)' : ''}</div>
-                    <div class="item-desc">${pet.description}</div>
+                    <div class="item-desc">${pet.description} | Damage: ${pet.damage || 10} | Range: ${pet.attackRange || 250}px</div>
                 </div>
                 <div class="item-price">${pet.price}💰</div>
                 <button class="btn btn-buy" ${pet.owned ? '' : (canBuy ? '' : 'disabled')} 
@@ -871,6 +1160,12 @@ function updateGame() {
         gameState.pet.update();
     }
     
+    // Update pet projectiles
+    gameState.petProjectiles = gameState.petProjectiles.filter(proj => {
+        const isDead = proj.update();
+        return !isDead;
+    });
+    
     // Spawn monsters
     const currentTime = Date.now();
     if (currentTime - gameState.lastMonsterSpawn > CONFIG.monster.spawnRate) {
@@ -913,6 +1208,9 @@ function drawGame() {
     if (gameState.player) {
         gameState.player.draw();
     }
+    
+    // Draw pet projectiles
+    gameState.petProjectiles.forEach(proj => proj.draw());
     
     // Draw pet (behind player but above monsters)
     if (gameState.pet) {
@@ -1022,7 +1320,11 @@ function loadGameData() {
                         owned: savedPet.owned ?? defaultPet.owned,
                         price: savedPet.price ?? defaultPet.price,
                         description: savedPet.description || defaultPet.description,
-                        image: savedPet.image || defaultPet.image
+                        image: savedPet.image || defaultPet.image,
+                        damage: defaultPet.damage,
+                        attackRange: defaultPet.attackRange,
+                        attackCooldown: defaultPet.attackCooldown,
+                        attackType: defaultPet.attackType
                     };
                 });
             }
