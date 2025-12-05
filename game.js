@@ -22,7 +22,7 @@ const CONFIG = {
 };
 
 const DEFAULT_SWORDS = [
-    { id: 1, name: 'Basic Sword', damage: 10, price: 0, owned: true, image: 'sword1.png' },
+    { id: 1, name: 'Wooden Sword', damage: 10, price: 0, owned: true, image: 'sword1.png' },
     { id: 2, name: 'Iron Sword', damage: 20, price: 50, owned: false, image: 'sword2.png' },
     { id: 3, name: 'Steel Sword', damage: 35, price: 150, owned: false, image: 'sword3.png' },
     { id: 4, name: 'Dragon Sword', damage: 55, price: 400, owned: false, image: 'sword4.png' },
