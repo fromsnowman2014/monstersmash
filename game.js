@@ -35,6 +35,13 @@ const DEFAULT_MAPS = [
     { id: 3, name: 'Map 3: Skeletons + Bats', enemies: ['skeleton', 'bat'], price: 500, owned: false, background: 'bg3.png' }
 ];
 
+const DEFAULT_PETS = [
+    { id: 1, name: 'Archer', description: 'A loyal archer companion', price: 0, owned: true, image: 'archer.png' },
+    { id: 2, name: 'Eye Golem', description: 'A mystical eye golem', price: 300, owned: false, image: 'eyeballgolem.png' },
+    { id: 3, name: 'Stone Golem', description: 'A sturdy stone guardian', price: 600, owned: false, image: 'stonegolem.png' },
+    { id: 4, name: 'Witch', description: 'A magical witch ally', price: 800, owned: false, image: 'witch.png' }
+];
+
 const cloneDefaults = (items) => items.map(item => ({ ...item }));
 
 // Game State
@@ -53,8 +60,11 @@ let gameState = {
     shop: {
         swords: cloneDefaults(DEFAULT_SWORDS),
         maps: cloneDefaults(DEFAULT_MAPS),
-        currentSword: 1
-    }
+        pets: cloneDefaults(DEFAULT_PETS),
+        currentSword: 1,
+        currentPet: 1
+    },
+    pet: null
 };
 
 // Canvas Setup
@@ -75,7 +85,11 @@ const imagePaths = {
     sword2: 'images/sword2.png',
     sword3: 'images/sword3.png',
     sword4: 'images/sword4.png',
-    sword5: 'images/sword5.png'
+    sword5: 'images/sword5.png',
+    archer: 'images/archer.png',
+    eyeballgolem: 'images/eyeballgolem.png',
+    stonegolem: 'images/stonegolem.png',
+    witch: 'images/witch.png'
 };
 
 // Load all images
@@ -516,6 +530,61 @@ class Monster {
     }
 }
 
+// Pet Class
+class Pet {
+    constructor(petData) {
+        this.petData = petData;
+        this.x = 0;
+        this.y = 0;
+        this.width = 200;
+        this.height = 100;
+        this.offsetX = 0;
+        this.offsetY = -60; // Position behind player
+        this.followSpeed = 3;
+        this.animationFrame = 0;
+        this.bobOffset = 0;
+    }
+
+    update() {
+        if (!gameState.player) return;
+
+        // Calculate target position (offset from player)
+        const targetX = gameState.player.x + this.offsetX;
+        const targetY = gameState.player.y + this.offsetY;
+
+        // Smoothly move towards target position
+        const dx = targetX - this.x;
+        const dy = targetY - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 0) {
+            this.x += (dx / dist) * Math.min(this.followSpeed, dist);
+            this.y += (dy / dist) * Math.min(this.followSpeed, dist);
+        }
+
+        // Bobbing animation
+        this.animationFrame += 0.1;
+        this.bobOffset = Math.sin(this.animationFrame) * 3;
+    }
+
+    draw() {
+        const imageKey = this.petData.image.replace('.png', '');
+        const petImage = images[imageKey];
+        
+        if (!petImage || !petImage.complete) {
+            // Fallback
+            ctx.fillStyle = '#4ecdc4';
+            ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2 + this.bobOffset, this.width, this.height);
+            return;
+        }
+
+        ctx.save();
+        ctx.translate(this.x, this.y + this.bobOffset);
+        ctx.drawImage(petImage, -this.width / 2, -this.height / 2, this.width, this.height);
+        ctx.restore();
+    }
+}
+
 // Game Functions
 function startGame() {
     // Reset game state
@@ -530,6 +599,16 @@ function startGame() {
     // Create player
     gameState.player = new Player();
     gameState.player.health = CONFIG.player.health;
+
+    // Create pet
+    const currentPet = gameState.shop.pets.find(p => p.id === gameState.shop.currentPet);
+    if (currentPet && currentPet.owned) {
+        gameState.pet = new Pet(currentPet);
+        gameState.pet.x = gameState.player.x;
+        gameState.pet.y = gameState.player.y;
+    } else {
+        gameState.pet = null;
+    }
 
     // Hide menus, show HUD
     document.getElementById('startScreen').classList.add('hidden');
@@ -629,6 +708,34 @@ function updateShopDisplay() {
         
         mapsList.appendChild(item);
     });
+
+    // Update pets list
+    const petsList = document.getElementById('petsList');
+    if (petsList) {
+        petsList.innerHTML = '';
+        
+        gameState.shop.pets.forEach(pet => {
+            const item = document.createElement('div');
+            item.className = `shop-item ${pet.owned ? 'owned' : ''}`;
+            
+            const isCurrent = pet.id === gameState.shop.currentPet;
+            const canBuy = !pet.owned && gameState.coins >= pet.price;
+            
+            item.innerHTML = `
+                <div class="item-info">
+                    <div class="item-name">${pet.name} ${isCurrent ? '(EQUIPPED)' : ''}</div>
+                    <div class="item-desc">${pet.description}</div>
+                </div>
+                <div class="item-price">${pet.price}💰</div>
+                <button class="btn btn-buy" ${pet.owned ? '' : (canBuy ? '' : 'disabled')} 
+                        onclick="buyPet(${pet.id})">
+                    ${pet.owned ? (isCurrent ? 'EQUIPPED' : 'EQUIP') : 'BUY'}
+                </button>
+            `;
+            
+            petsList.appendChild(item);
+        });
+    }
 }
 
 function buySword(swordId) {
@@ -667,6 +774,39 @@ function buyMap(mapId) {
         }
         updateShopDisplay();
         updateHUD();
+        saveGameData();
+    }
+}
+
+function buyPet(petId) {
+    const pet = gameState.shop.pets.find(p => p.id === petId);
+    if (!pet) return;
+    
+    if (!pet.owned) {
+        if (gameState.coins >= pet.price) {
+            gameState.coins -= pet.price;
+            pet.owned = true;
+            gameState.shop.currentPet = petId;
+            // Update pet in game if playing
+            if (gameState.isPlaying && gameState.player) {
+                gameState.pet = new Pet(pet);
+                gameState.pet.x = gameState.player.x;
+                gameState.pet.y = gameState.player.y;
+            }
+            updateShopDisplay();
+            updateHUD();
+            saveGameData();
+        }
+    } else {
+        // Equip pet
+        gameState.shop.currentPet = petId;
+        // Update pet in game if playing
+        if (gameState.isPlaying && gameState.player) {
+            gameState.pet = new Pet(pet);
+            gameState.pet.x = gameState.player.x;
+            gameState.pet.y = gameState.player.y;
+        }
+        updateShopDisplay();
         saveGameData();
     }
 }
@@ -726,6 +866,11 @@ function updateGame() {
         }
     }
     
+    // Update pet
+    if (gameState.pet) {
+        gameState.pet.update();
+    }
+    
     // Spawn monsters
     const currentTime = Date.now();
     if (currentTime - gameState.lastMonsterSpawn > CONFIG.monster.spawnRate) {
@@ -768,6 +913,11 @@ function drawGame() {
     if (gameState.player) {
         gameState.player.draw();
     }
+    
+    // Draw pet (behind player but above monsters)
+    if (gameState.pet) {
+        gameState.pet.draw();
+    }
 }
 
 function gameLoop() {
@@ -799,8 +949,10 @@ function saveGameData() {
     localStorage.setItem('monsterSmash_coins', gameState.coins.toString());
     localStorage.setItem('monsterSmash_swords', JSON.stringify(gameState.shop.swords));
     localStorage.setItem('monsterSmash_maps', JSON.stringify(gameState.shop.maps));
+    localStorage.setItem('monsterSmash_pets', JSON.stringify(gameState.shop.pets));
     localStorage.setItem('monsterSmash_currentSword', gameState.shop.currentSword.toString());
     localStorage.setItem('monsterSmash_currentMap', gameState.currentMap.toString());
+    localStorage.setItem('monsterSmash_currentPet', gameState.shop.currentPet.toString());
 }
 
 function loadGameData() {
@@ -857,6 +1009,30 @@ function loadGameData() {
         gameState.shop.maps = cloneDefaults(DEFAULT_MAPS);
     }
     
+    const savedPets = localStorage.getItem('monsterSmash_pets');
+    if (savedPets) {
+        try {
+            const parsedPets = JSON.parse(savedPets);
+            if (Array.isArray(parsedPets)) {
+                const defaultPets = cloneDefaults(DEFAULT_PETS);
+                gameState.shop.pets = defaultPets.map(defaultPet => {
+                    const savedPet = parsedPets.find(pet => pet.id === defaultPet.id) || {};
+                    return {
+                        ...defaultPet,
+                        owned: savedPet.owned ?? defaultPet.owned,
+                        price: savedPet.price ?? defaultPet.price,
+                        description: savedPet.description || defaultPet.description,
+                        image: savedPet.image || defaultPet.image
+                    };
+                });
+            }
+        } catch (error) {
+            console.warn('Failed to parse saved pets data', error);
+        }
+    } else {
+        gameState.shop.pets = cloneDefaults(DEFAULT_PETS);
+    }
+    
     const savedSword = localStorage.getItem('monsterSmash_currentSword');
     if (savedSword) {
         gameState.shop.currentSword = parseInt(savedSword);
@@ -876,6 +1052,17 @@ function loadGameData() {
         const fallbackMap = gameState.shop.maps.find(map => map.owned) || gameState.shop.maps[0];
         if (fallbackMap) {
             gameState.currentMap = fallbackMap.id;
+        }
+    }
+    
+    const savedPet = localStorage.getItem('monsterSmash_currentPet');
+    if (savedPet) {
+        gameState.shop.currentPet = parseInt(savedPet);
+    }
+    if (!gameState.shop.pets.some(pet => pet.id === gameState.shop.currentPet && pet.owned)) {
+        const fallbackPet = gameState.shop.pets.find(pet => pet.owned) || gameState.shop.pets[0];
+        if (fallbackPet) {
+            gameState.shop.currentPet = fallbackPet.id;
         }
     }
 }
